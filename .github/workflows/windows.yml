@@ -2,6 +2,8 @@ name: Build and publish Windows installer
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 permissions:
