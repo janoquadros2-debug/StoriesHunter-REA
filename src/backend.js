@@ -5,6 +5,7 @@ const path = require('node:path');
 const https = require('node:https');
 const {app} = require('electron');
 const {parseInstagramLink} = require('./links');
+const {profileInput,mediaEntries} = require('./profile');
 
 function resolveBinary() {
   const name = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
@@ -71,6 +72,22 @@ async function inspect(value){
     count:entries.length, duration: Number(data.duration||0),
     items:entries.slice(0,20).map(x=>({title:String(x.title||'Mídia').slice(0,110),kind:x.ext||'',duration:Number(x.duration||0)}))};
 }
+async function inspectProfile(value){
+  const profile=profileInput(value);
+  const binary=requireBinary();
+  let stdout;
+  try{
+    ({stdout}=await runProcess(binary,[...baseArgs(),'--flat-playlist','--dump-single-json','--skip-download',profile.url],{timeoutMs:90000}));
+  }catch(error){
+    throw new Error('A consulta automática deste perfil não está disponível pelo extrator atual. Isso pode ocorrer até com contas públicas. Você pode continuar utilizando links diretos de publicações e Reels. Detalhes: '+error.message);
+  }
+  let data;
+  try{data=JSON.parse(stdout.trim());}catch{throw new Error('O extrator retornou um formato de perfil não reconhecido.');}
+  const items=mediaEntries(data);
+  return {profile,items,count:items.length,reportedCount:Array.isArray(data.entries)?data.entries.length:0,
+    warning:items.length?'Estas são apenas as mídias com links individuais identificados pelo extrator; a lista pode estar incompleta.':'Nenhuma mídia com link individual foi disponibilizada pelo extrator. Não é possível prometer uma listagem completa deste perfil.'};
+}
+
 function startDownload(value,folder,mode,quality,callbacks={}){
   const link=parseInstagramLink(value), binary=requireBinary();
   if(!folder||!fs.existsSync(folder)||!fs.statSync(folder).isDirectory()) throw new Error('Escolha uma pasta existente.');
@@ -135,4 +152,4 @@ async function updateExtractor(){
   }catch(e){try{fs.unlinkSync(temp);}catch{}throw new Error('Não foi possível atualizar o yt-dlp: '+e.message);}
 }
 
-module.exports={resolveBinary,inspect,startDownload,parseInstagramLink,runProcess,updateExtractor,cleanError};
+module.exports={resolveBinary,inspect,inspectProfile,startDownload,parseInstagramLink,runProcess,updateExtractor,cleanError};
