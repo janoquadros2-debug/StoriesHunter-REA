@@ -5,17 +5,24 @@ const fs=require('node:fs');
 const {autoUpdater}=require('electron-updater');
 const {inspect,inspectProfile,startDownload,resolveBinary,parseInstagramLink,runProcess,updateExtractor}=require('./backend');
 let win;
+let oneClickUpdating=false;
 let updateState={status:'idle',version:app.getVersion(),progress:0,message:'Verificação ainda não iniciada.'};
 function reportUpdate(patch){updateState={...updateState,...patch};send('update:status',updateState);}
 // Repositório privado: sem credenciais embutidas. O feed público só funciona após a publicação pública.
 autoUpdater.autoDownload=false;
 autoUpdater.autoInstallOnAppQuit=false;
 autoUpdater.on('checking-for-update',()=>reportUpdate({status:'checking',message:'Procurando atualização...'}));
-autoUpdater.on('update-available',info=>reportUpdate({status:'available',latest:info.version,message:`Versão ${info.version} disponível.`}));
-autoUpdater.on('update-not-available',()=>reportUpdate({status:'current',latest:app.getVersion(),message:'Você está usando a versão mais recente.'}));
+autoUpdater.on('update-available',info=>{
+ reportUpdate({status:'available',latest:info.version,message:'Versão '+info.version+' disponível.'});
+ if(oneClickUpdating)autoUpdater.downloadUpdate().catch(err=>{oneClickUpdating=false;reportUpdate({status:'error',message:err.message});});
+});
+autoUpdater.on('update-not-available',()=>{oneClickUpdating=false;reportUpdate({status:'current',latest:app.getVersion(),message:'Você está usando a versão mais recente.'});});
 autoUpdater.on('download-progress',progress=>reportUpdate({status:'downloading',progress:Math.round(progress.percent),message:`Baixando... ${Math.round(progress.percent)}%`}));
-autoUpdater.on('update-downloaded',info=>reportUpdate({status:'ready',latest:info.version,progress:100,message:'Download concluído. Pronto para reiniciar e instalar.'}));
-autoUpdater.on('error',err=>reportUpdate({status:'error',message:'Não foi possível consultar ou baixar a atualização. Se o repositório ainda for privado, o feed público não está acessível. Detalhes: '+err.message}));
+autoUpdater.on('update-downloaded',info=>{
+ reportUpdate({status:'ready',latest:info.version,progress:100,message:'Download concluído. Preparando instalação...'});
+ if(oneClickUpdating){oneClickUpdating=false;setImmediate(()=>autoUpdater.quitAndInstall(false,true));}
+});
+autoUpdater.on('error',err=>{oneClickUpdating=false;reportUpdate({status:'error',message:'Não foi possível consultar ou baixar a atualização: '+err.message});});
 
 const tasks=new Map(), queue=[];
 let running=null, settings={};
@@ -98,6 +105,13 @@ ipcMain.handle('app:diagnostics',async()=>{
 
 ipcMain.handle('app:update-extractor',async()=>{if(running)throw new Error('Finalize o download em andamento antes de atualizar.');return updateExtractor();});
 
+ipcMain.handle('update:one-click',async()=>{
+ if(!app.isPackaged || process.platform!=='win32')throw new Error('Instale a versão Windows do Stories Hunter para atualizar.');
+ if(oneClickUpdating || ['checking','downloading'].includes(updateState.status))throw new Error('Uma atualização já está sendo verificada.');
+ if(Array.from(tasks.values()).some(t=>['queued','downloading'].includes(t.status)))throw new Error('Finalize ou cancele os downloads antes de atualizar.');
+ oneClickUpdating=true;
+ try{await autoUpdater.checkForUpdates();return updateState;}catch(err){oneClickUpdating=false;throw err;}
+});
 ipcMain.handle('update:state',()=>updateState);
 ipcMain.handle('update:check',async()=>{
  if(!app.isPackaged){reportUpdate({status:'development',message:'Atualizações automáticas só funcionam no instalador Windows, não no npm start.'});return updateState;}
