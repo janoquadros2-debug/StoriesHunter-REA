@@ -54,7 +54,15 @@ function requireBinary(){const b=resolveBinary();if(!b)throw new Error('yt-dlp n
 function baseArgs(){return ['--no-playlist','--no-warnings','--socket-timeout','20','--retries','2','--extractor-retries','2'];}
 async function inspect(value){
   const link=parseInstagramLink(value), binary=requireBinary();
-  const {stdout}=await runProcess(binary,[...baseArgs(),'--dump-single-json','--skip-download',link.url],{timeoutMs:90000});
+  let stdout;
+  try {
+    ({stdout}=await runProcess(binary,[...baseArgs(),'--dump-single-json','--skip-download',link.url],{timeoutMs:90000}));
+  } catch (error) {
+    if (link.type === 'perfil') {
+      throw new Error('Não foi possível consultar as publicações deste perfil. O yt-dlp pode não oferecer suporte à listagem do perfil ou o Instagram pode exigir acesso autorizado. Para testar o download, abra uma publicação ou Reel público e cole o link direto. Detalhes: ' + error.message);
+    }
+    throw error;
+  }
   let data;try{data=JSON.parse(stdout.trim());}catch{throw new Error('O extrator não retornou dados válidos.');}
   const entries=Array.isArray(data.entries)?data.entries.filter(Boolean).slice(0,100):[data];
   return {link, title:String(data.title||data.uploader||'Conteúdo do Instagram').slice(0,180),
