@@ -74,6 +74,32 @@ function openInstagramBrowser(url){
 }
 ipcMain.handle('instagram:login',()=>openInstagramBrowser('https://www.instagram.com/accounts/login/'));
 ipcMain.handle('instagram:profile',(_event,user)=>openInstagramBrowser(profileInput(user).url));
+
+ipcMain.handle('instagram:visible-links',async()=>{
+ if(!instagramWindow||instagramWindow.isDestroyed())throw new Error('Abra primeiro a janela do Instagram.');
+ if(!allowedInstagramPage(instagramWindow.webContents.getURL()))throw new Error('Navegação fora do Instagram.');
+ const found=await instagramWindow.webContents.executeJavaScript(`(()=>{
+  const out=[];
+  for(const a of [...document.querySelectorAll('a[href]')].slice(0,2500)){
+    const url=a.href;
+    if(!/^https:\\/\\/(?:www\\.)?instagram\\.com\\/(?:p|reel|reels|tv)\\/[A-Za-z0-9_-]+\\/?(?:[?#].*)?$/i.test(url))continue;
+    const img=a.querySelector('img');
+    out.push({url,title:(img?.alt||a.getAttribute('aria-label')||'Mídia').slice(0,150),thumbnail:img?.currentSrc||img?.src||''});
+  }
+  return out;
+})()`,true);
+ const items=[],seen=new Set();
+ for(const item of found){
+  try{
+   const parsed=parseInstagramLink(item.url);
+   if(seen.has(parsed.url))continue;seen.add(parsed.url);
+   items.push({url:parsed.url,type:parsed.type,title:item.title,thumbnail:typeof item.thumbnail==='string'&&item.thumbnail.startsWith('https://')?item.thumbnail:null});
+   if(items.length>=100)break;
+  }catch{}
+ }
+ return {items,warning:'Importação dos links de publicações e Reels presentes na tela aberta. Role a página no Instagram e importe novamente para encontrar mais itens. Stories não são importados automaticamente.'};
+});
+
 ipcMain.handle('app:boot',()=>({settings,history:Array.from(tasks.values()).map(x=>({...x,cancel:undefined})),hasYtDlp:!!resolveBinary(),platform:process.platform}));
 ipcMain.handle('app:inspect',async(_e,url)=>inspect(url));
 ipcMain.handle('app:profile',async(_e,username)=>inspectProfile(username));
