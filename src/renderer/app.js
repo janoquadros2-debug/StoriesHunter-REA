@@ -72,3 +72,27 @@ bind('profileDownloadBtn',async()=>{
  try{const tasks=await window.hunter.enqueueBatch(urls);for(const task of tasks)state.tasks.set(task.id,task);render();toast(tasks.length+' mídia(s) adicionada(s) à fila.');show('downloads');}
  catch(error){toast(error.message);}
 });
+
+bind('instagramLoginBtn',async()=>{
+ try{await window.hunter.instagramLogin();toast('Entre diretamente no Instagram na janela aberta.');}
+ catch(err){toast(err.message);}
+});
+bind('instagramOpenProfileBtn',async()=>{
+ const user=$('profileInput').value.trim();
+ if(!user){toast('Digite o @usuário que deseja abrir.');return;}
+ try{await window.hunter.instagramOpenProfile(user);toast('Perfil aberto na janela do Instagram.');}
+ catch(err){toast(err.message);}
+});
+bind('instagramImportBtn',async()=>{
+ const button=$('instagramImportBtn');button.disabled=true;button.textContent='Importando...';
+ try{
+  const result=await window.hunter.instagramVisibleLinks();
+  const byUrl=new Map(state.profileItems.map(item=>[item.url,item]));
+  for(const item of result.items||[])byUrl.set(item.url,item);
+  state.profileItems=[...byUrl.values()];
+  $('profileStatus').textContent=state.profileItems.length+' mídias identificadas. '+result.warning;
+  renderProfile();
+  toast((result.items||[]).length+' links encontrados na página aberta.');
+ }catch(err){toast(err.message);}
+ finally{button.disabled=false;button.textContent='Importar mídias visíveis';}
+});
