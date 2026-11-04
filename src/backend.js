@@ -16,14 +16,24 @@ function resolveBinary() {
   return null;
 }
 function cleanError(str) {
-  const s = String(str || '').replace(/\x1b\[[\d;]*m/g, '');
-  if (/instagram|media response|extract|login|http error|csrf|rate.limit|unable to download/i.test(s)) {
-    if (/login required|need to log in|sign in|authentication|private|cookies/i.test(s)) return 'O Instagram exige login para acessar esta mídia. O aplicativo não possui sessão autenticada. Verifique se o link é público e está acessível no navegador.';
-    if (/rate.limit|too many requests|429/i.test(s)) return 'O Instagram limitou as consultas temporariamente. Tente novamente mais tarde.';
-    if (/unsupported url/i.test(s)) return 'Este tipo de link ainda não é compatível com o extrator.';
-    return 'O Instagram não forneceu os dados necessários. Atualize o yt-dlp em Configurações e tente novamente. Se persistir, o Instagram pode ter restringido este conteúdo ou alterado sua API.';
-  }
-  return s.split(/\r?\n/).filter(x => /ERROR:|WARNING:|Unsupported URL|not available|HTTP Error/i.test(x)).slice(-3).join(' | ').slice(0,650) || s.slice(-500) || 'Não foi possível concluir a operação.';
+  const raw = String(str || '').replace(/\x1b\[[\d;]*m/g, '');
+  const lines = raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  // A mensagem final do extrator e mais util que avisos genericos anteriores.
+  const lastError = [...lines].reverse().find(x => /(?:^|\s)ERROR:|HTTP Error|Unsupported URL/i.test(x)) || '';
+  const s = lastError || raw;
+  if (/429|rate.limit|too many requests/i.test(s))
+    return 'O Instagram limitou as tentativas (HTTP 429). Aguarde antes de tentar novamente.';
+  if (/login required|need to log in|sign in|authentication|private|cookies/i.test(s))
+    return 'Esta mídia exige autenticação ou acesso autorizado no Instagram. O programa não está autenticado; confirme as permissões do conteúdo.';
+  if (/HTTP Error 404|404: Not Found|video info extraction failed/i.test(s))
+    return 'O Instagram respondeu com erro HTTP 404 para o extrator. Mesmo que a publicação abra no navegador, a API usada pelo yt-dlp pode ter mudado.';
+  if (/HTTP Error 403|403: Forbidden/i.test(s))
+    return 'O Instagram negou o acesso ao extrator (HTTP 403). Confirme se o conteúdo está acessível e tente novamente mais tarde.';
+  if (/unsupported url/i.test(s))
+    return 'Este formato de link não é suportado pelo extrator.';
+  if (/unable to extract|extraction failed|unable to download|instagram/i.test(s))
+    return 'Falha do extrator do Instagram: ' + s.replace(/^ERROR:\s*/i, '').slice(0,450) + '. Verifique a versão do yt-dlp; se estiver atualizada, pode ser uma incompatibilidade com a API do Instagram.';
+  return (lastError || lines.slice(-2).join(' | ') || 'Não foi possível concluir a operação.').slice(0,600);
 }
 function runProcess(binary, args, {onLine, timeoutMs=90000, signal}={}) {
   return new Promise((resolve, reject) => {
