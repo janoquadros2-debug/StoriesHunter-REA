@@ -57,7 +57,7 @@ async function searchProfile(){
  try{
    const result=await window.hunter.profile(input);
    state.profileItems=result.items||[];
-   $('profileStatus').textContent='@'+result.profile.username+' · '+result.items.length+' mídias selecionáveis. '+result.warning;
+   $('profileStatus').textContent='@'+result.profile.username+' · '+result.items.length+' mídias selecionáveis. Fontes: '+((result.sources||[]).join(', ')||'nenhuma')+'. '+result.warning+(result.errors?.length?' Detalhes: '+result.errors.join(' | '):'');
    renderProfile();
  }catch(error){$('profileStatus').textContent=error.message||'Não foi possível consultar o perfil.';}
  finally{btn.disabled=false;btn.textContent='Buscar';}
