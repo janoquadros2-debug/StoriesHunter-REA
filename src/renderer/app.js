@@ -1,11 +1,11 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const state={tasks:new Map(),settings:null,filter:'all'};
+const state={tasks:new Map(),settings:null,filter:'all',profileItems:[],selected:new Set()};
 const text=(v)=>String(v??'');
 function el(tag,cls,content){const node=document.createElement(tag);if(cls)node.className=cls;if(content!==undefined)node.textContent=text(content);return node;}
 function toast(message){const t=$('toast');t.textContent=text(message);t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),4500);}
 function bind(id,fn){$(id).addEventListener('click',fn);}
-function show(view){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+view));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===view));const titles={home:['Visão geral','Explore e organize mídias públicas do Instagram.'],downloads:['Downloads','Gerencie transferências e acompanhe o progresso.'],history:['Histórico','Consulte registros salvos neste computador.'],settings:['Configurações','Personalize o aplicativo e verifique dependências.'],updates:['Atualizações','Instale novas versões sem substituir arquivos manualmente.']};$('pageTitle').textContent=titles[view][0];$('pageDescription').textContent=titles[view][1];render();if(view==='settings')diagnose();}
+function show(view){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+view));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===view));const titles={profiles:['Explorar perfis','Busque mídias disponíveis usando apenas o @usuário.'],home:['Visão geral','Explore e organize mídias públicas do Instagram.'],downloads:['Downloads','Gerencie transferências e acompanhe o progresso.'],history:['Histórico','Consulte registros salvos neste computador.'],settings:['Configurações','Personalize o aplicativo e verifique dependências.'],updates:['Atualizações','Instale novas versões sem substituir arquivos manualmente.']};$('pageTitle').textContent=titles[view][0];$('pageDescription').textContent=titles[view][1];render();if(view==='settings')diagnose();}
 function statusText(t){return {queued:'Na fila',downloading:`Baixando ${Math.round(t.percent||0)}%`,completed:'Concluído',error:'Erro',cancelled:'Cancelado',interrompido:'Interrompido'}[t.status]||t.status;}
 function formatDate(n){return new Date(n).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});}
 function makeItem(t){const row=el('div','item'),icon=el('div','item-icon',t.type==='reel'?'▶':t.type==='story'?'◇':'▣'),body=el('div','item-main');const label=el('strong','',t.url);label.title=t.url;body.append(label,el('small','',`${t.type} · ${formatDate(t.createdAt)} · ${t.message||'Aguardando'}${t.speed?' · '+t.speed:''}`));if(t.status==='downloading'){const bar=el('div','progress'),fill=el('div');fill.style.width=Math.min(100,t.percent||0)+'%';bar.append(fill);body.append(bar);}const status=el('div','item-status '+t.status,statusText(t)),actions=el('div','item-actions');if(['queued','downloading'].includes(t.status)){const cancel=el('button','', 'Cancelar');cancel.onclick=()=>window.hunter.cancel(t.id).catch(e=>toast(e.message));actions.append(cancel);}if(t.status==='completed'){const folder=el('button','','Abrir pasta');folder.onclick=()=>window.hunter.openFolder(t.folder).catch(e=>toast(e.message));actions.append(folder);}row.append(icon,body,status,actions);return row;}
@@ -30,3 +30,44 @@ window.hunter.updateState().then(renderUpdate).catch(e=>toast(e.message));
 bind('checkUpdateBtn',()=>window.hunter.checkUpdate().then(renderUpdate).catch(e=>toast(e.message)));
 bind('downloadUpdateBtn',()=>window.hunter.downloadUpdate().then(renderUpdate).catch(e=>toast(e.message)));
 bind('installUpdateBtn',()=>window.hunter.installUpdate().catch(e=>toast(e.message)));
+
+function renderProfile(){
+ const container=$('profileResults');container.replaceChildren();
+ const items=state.profileItems;
+ if(!items.length){container.append(el('div','empty','Nenhuma mídia com link direto disponível para seleção.'));return;}
+ for(const item of items){
+   const card=el('label','profile-media');
+   const check=el('input');check.type='checkbox';check.checked=state.selected.has(item.url);
+   check.addEventListener('change',()=>{if(check.checked)state.selected.add(item.url);else state.selected.delete(item.url);});
+   if(item.thumbnail&&/^https:\/\//.test(item.thumbnail)){
+     const img=el('img','profile-thumb');img.referrerPolicy='no-referrer';img.src=item.thumbnail;img.onerror=()=>img.remove();card.append(img);
+   } else card.append(el('div','profile-placeholder','▣'));
+   const caption=el('div','profile-caption');
+   caption.append(el('strong','',item.title||'Mídia'),el('small','',item.type));
+   card.append(check,caption);container.append(card);
+ }
+}
+async function searchProfile(){
+ const btn=$('profileSearchBtn'),input=$('profileInput').value.trim();
+ if(!input){toast('Digite um @usuário do Instagram.');return;}
+ btn.disabled=true;btn.textContent='Buscando...';
+ $('profileStatus').textContent='Consultando as mídias disponíveis; isso depende do acesso permitido pelo Instagram.';
+ state.profileItems=[];state.selected.clear();renderProfile();
+ try{
+   const result=await window.hunter.profile(input);
+   state.profileItems=result.items||[];
+   $('profileStatus').textContent='@'+result.profile.username+' · '+result.items.length+' mídias selecionáveis. '+result.warning;
+   renderProfile();
+ }catch(error){$('profileStatus').textContent=error.message||'Não foi possível consultar o perfil.';}
+ finally{btn.disabled=false;btn.textContent='Buscar';}
+}
+bind('profileSearchBtn',searchProfile);
+$('profileInput').addEventListener('keydown',e=>{if(e.key==='Enter')searchProfile();});
+bind('profileSelectAllBtn',()=>{
+ state.selected=new Set(state.profileItems.map(item=>item.url));renderProfile();
+});
+bind('profileDownloadBtn',async()=>{
+ const urls=[...state.selected];if(!urls.length){toast('Selecione ao menos uma mídia disponível.');return;}
+ try{const tasks=await window.hunter.enqueueBatch(urls);for(const task of tasks)state.tasks.set(task.id,task);render();toast(tasks.length+' mídia(s) adicionada(s) à fila.');show('downloads');}
+ catch(error){toast(error.message);}
+});
