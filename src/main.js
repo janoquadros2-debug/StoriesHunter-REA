@@ -3,7 +3,7 @@ const {app,BrowserWindow,ipcMain,dialog,shell} = require('electron');
 const path=require('node:path');
 const fs=require('node:fs');
 const {autoUpdater}=require('electron-updater');
-const {inspect,startDownload,resolveBinary,parseInstagramLink,runProcess,updateExtractor}=require('./backend');
+const {inspect,inspectProfile,startDownload,resolveBinary,parseInstagramLink,runProcess,updateExtractor}=require('./backend');
 let win;
 let updateState={status:'idle',version:app.getVersion(),progress:0,message:'Verificação ainda não iniciada.'};
 function reportUpdate(patch){updateState={...updateState,...patch};send('update:status',updateState);}
@@ -52,6 +52,7 @@ app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});
 app.on('before-quit',()=>{for(const t of tasks.values())if(t.cancel)t.cancel();});
 ipcMain.handle('app:boot',()=>({settings,history:Array.from(tasks.values()).map(x=>({...x,cancel:undefined})),hasYtDlp:!!resolveBinary(),platform:process.platform}));
 ipcMain.handle('app:inspect',async(_e,url)=>inspect(url));
+ipcMain.handle('app:profile',async(_e,username)=>inspectProfile(username));
 ipcMain.handle('app:folder',async()=>{const r=await dialog.showOpenDialog(win,{properties:['openDirectory','createDirectory']});return r.canceled?null:r.filePaths[0];});
 ipcMain.handle('app:settings',(_e,newSettings)=>{
   const next={...settings};
@@ -59,6 +60,22 @@ ipcMain.handle('app:settings',(_e,newSettings)=>{
   if(['auto','video','audio'].includes(newSettings?.mode))next.mode=newSettings.mode;
   if(['best','1080','720','480'].includes(newSettings?.quality))next.quality=newSettings.quality;
   settings=next;saveJson(storePath(),settings);return settings;
+});
+ipcMain.handle('app:enqueue-batch',(_e,urls)=>{
+ if(!Array.isArray(urls)||urls.length===0||urls.length>100)throw new Error('Selecione entre 1 e 100 mídias.');
+ if(!resolveBinary())throw new Error('Instale o yt-dlp para habilitar downloads.');
+ const folder=settings.folder;
+ if(!fs.existsSync(folder)||!fs.statSync(folder).isDirectory())throw new Error('Pasta de destino não existe.');
+ const links=urls.map(url=>parseInstagramLink(url));
+ if(links.some(x=>!['reel','publicação','story','destaque'].includes(x.type)))throw new Error('Selecione links diretos de mídias, não perfis.');
+ const added=[];
+ const unique=new Set();
+ for(const link of links){
+   if(unique.has(link.url))continue;unique.add(link.url);
+   const t={id:require('node:crypto').randomUUID(),url:link.url,type:link.type,mode:settings.mode,quality:settings.quality,folder,status:'queued',percent:0,files:[],createdAt:Date.now(),message:''};
+   tasks.set(t.id,t);queue.push(t.id);added.push({...t});
+ }
+ added.forEach(emitTask);trimHistory();setImmediate(tick);return added;
 });
 ipcMain.handle('app:enqueue',(_e,payload)=>{
   if(!payload||typeof payload.url!=='string')throw new Error('Link obrigatório.');
