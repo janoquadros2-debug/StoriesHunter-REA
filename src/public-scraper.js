@@ -10,20 +10,19 @@ function extractPublicMedia(html){
  const body=decodeBasic(html);
  const matches=[];
  const patterns=[
-  /(?:https?:\\?\/\\?\/)?(?:www\\?\.)?instagram\\?\.com\\?\/(?:reel|reels|p|tv|stories)\\?\/[^"'<>\\s?&#]+/gi,
-  /(?:href|content)=["'](\\?\/(?:reel|reels|p|tv|stories)\\?\/[^"'<>\\s?&#]+)["']/gi
+  /https:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv|stories)\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)?\/?/gi,
+  /(?:href|content)=["'](\/(?:reel|reels|p|tv|stories)\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)?\/?)["']/gi
  ];
  const seen=new Set();
  for(const re of patterns){
-   for(const m of body.matchAll(re)){
-     let raw=decodeBasic(m[1]||m[0]).replace(/\\/g,'');
-     if(raw.startsWith('/'))raw='https://www.instagram.com'+raw;
-     else if(!/^https:\/\//i.test(raw))raw='https://'+raw;
+   for(const match of body.matchAll(re)){
+     const raw=match[1]||match[0];
+     const url=raw.startsWith('/')?'https://www.instagram.com'+raw:raw;
      try{
-       const p=parseInstagramLink(raw);
-       if(p.type==='perfil'||seen.has(p.url))continue;
-       seen.add(p.url);
-       matches.push({url:p.url,type:p.type,title:p.type==='reel'?'Reel':'Publicação '+p.type,thumbnail:null,duration:0});
+       const parsed=parseInstagramLink(url);
+       if(parsed.type==='perfil'||seen.has(parsed.url))continue;
+       seen.add(parsed.url);
+       matches.push({url:parsed.url,type:parsed.type,title:parsed.type==='reel'?'Reel':'Publicação '+parsed.type,thumbnail:null,duration:0});
        if(matches.length>=100)return matches;
      }catch{}
    }
