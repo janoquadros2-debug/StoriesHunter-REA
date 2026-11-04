@@ -6,6 +6,7 @@ const https = require('node:https');
 const {app} = require('electron');
 const {parseInstagramLink} = require('./links');
 const {profileInput,mediaEntries} = require('./profile');
+const {scrapePublicProfile} = require('./public-scraper');
 
 function resolveBinary() {
   const name = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
@@ -73,19 +74,24 @@ async function inspect(value){
     items:entries.slice(0,20).map(x=>({title:String(x.title||'Mídia').slice(0,110),kind:x.ext||'',duration:Number(x.duration||0)}))};
 }
 async function inspectProfile(value){
-  const profile=profileInput(value);
-  const binary=requireBinary();
-  let stdout;
-  try{
-    ({stdout}=await runProcess(binary,[...baseArgs(),'--flat-playlist','--dump-single-json','--skip-download',profile.url],{timeoutMs:90000}));
-  }catch(error){
-    throw new Error('A consulta automática deste perfil não está disponível pelo extrator atual. Isso pode ocorrer até com contas públicas. Você pode continuar utilizando links diretos de publicações e Reels. Detalhes: '+error.message);
-  }
-  let data;
-  try{data=JSON.parse(stdout.trim());}catch{throw new Error('O extrator retornou um formato de perfil não reconhecido.');}
-  const items=mediaEntries(data);
-  return {profile,items,count:items.length,reportedCount:Array.isArray(data.entries)?data.entries.length:0,
-    warning:items.length?'Estas são apenas as mídias com links individuais identificados pelo extrator; a lista pode estar incompleta.':'Nenhuma mídia com link individual foi disponibilizada pelo extrator. Não é possível prometer uma listagem completa deste perfil.'};
+ const profile=profileInput(value);
+ let items=[],sources=[],errors=[];
+ try{
+   const publicResult=await scrapePublicProfile(profile);
+   items=publicResult.items;sources.push('HTML público');
+ }catch(err){errors.push('HTML público: '+err.message);}
+ if(items.length===0){
+   const binary=resolveBinary();
+   if(binary){
+     try{
+       const {stdout}=await runProcess(binary,[...baseArgs(),'--flat-playlist','--dump-single-json','--skip-download',profile.url],{timeoutMs:45000});
+       const data=JSON.parse(stdout.trim());
+       items=mediaEntries(data);sources.push('yt-dlp');
+     }catch(err){errors.push('yt-dlp: '+err.message);}
+   }else errors.push('yt-dlp não está instalado.');
+ }
+ return {profile,items,count:items.length,reportedCount:items.length,sources,errors,
+  warning:items.length?'Foram encontrados somente links individuais acessíveis; a lista pode ser parcial. Stories e destaques geralmente não aparecem no HTML público.':'Não foi possível identificar links de mídia na página pública deste perfil. Isso não significa que o perfil esteja vazio. O Instagram pode exigir login ou carregar os dados dinamicamente.'};
 }
 
 function startDownload(value,folder,mode,quality,callbacks={}){
