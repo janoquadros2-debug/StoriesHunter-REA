@@ -2,7 +2,7 @@
 const {contextBridge,ipcRenderer}=require('electron');
 const invoke=(event,...args)=>ipcRenderer.invoke(event,...args);
 contextBridge.exposeInMainWorld('hunter',Object.freeze({
- boot:()=>invoke('app:boot'),inspect:url=>invoke('app:inspect',url),chooseFolder:()=>invoke('app:folder'),
+ boot:()=>invoke('app:boot'),inspect:url=>invoke('app:inspect',url),profile:user=>invoke('app:profile',user),enqueueBatch:urls=>invoke('app:enqueue-batch',urls),chooseFolder:()=>invoke('app:folder'),
  saveSettings:s=>invoke('app:settings',s),enqueue:url=>invoke('app:enqueue',{url}),cancel:id=>invoke('app:cancel',id),
  clearHistory:()=>invoke('app:clear'),openFolder:path=>invoke('app:open-folder',path),
  openDependency:()=>invoke('app:external','https://github.com/yt-dlp/yt-dlp/releases/latest'),diagnostics:()=>invoke('app:diagnostics'),updateExtractor:()=>invoke('app:update-extractor'),
