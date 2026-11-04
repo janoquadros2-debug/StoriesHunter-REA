@@ -29,11 +29,23 @@ jobs:
             dist/*.exe
             dist/*.yml
             dist/*.blockmap
-      - name: Publish GitHub Release on version tag
+      - name: Publish installer to public updates repository
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.exe
-            dist/*.yml
-            dist/*.blockmap
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.STORIES_HUNTER_RELEASE_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if (-not $env:GH_TOKEN) {
+            throw "Configure repository secret STORIES_HUNTER_RELEASE_TOKEN with Contents: read/write access to StoriesHunter-Updates."
+          }
+          $target = "janoquadros2-debug/StoriesHunter-Updates"
+          $assets = @(Get-ChildItem dist -File | Where-Object { $_.Extension -in @(".exe", ".yml", ".blockmap") } | ForEach-Object FullName)
+          if (-not ($assets | Where-Object { $_ -like "*.exe" })) { throw "Installer .exe missing" }
+          if (-not ($assets | Where-Object { $_ -like "*latest.yml" })) { throw "Updater manifest latest.yml missing" }
+          gh release view $env:TAG_NAME --repo $target *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG_NAME @assets --repo $target --clobber
+          } else {
+            gh release create $env:TAG_NAME @assets --repo $target --title "Stories Hunter REA $env:TAG_NAME" --notes "Instalador Windows e arquivos de atualização automática."
+          }
