@@ -1,0 +1,12 @@
+'use strict';
+const {contextBridge,ipcRenderer}=require('electron');
+const invoke=(event,...args)=>ipcRenderer.invoke(event,...args);
+contextBridge.exposeInMainWorld('hunter',Object.freeze({
+ boot:()=>invoke('app:boot'),inspect:url=>invoke('app:inspect',url),chooseFolder:()=>invoke('app:folder'),
+ saveSettings:s=>invoke('app:settings',s),enqueue:url=>invoke('app:enqueue',{url}),cancel:id=>invoke('app:cancel',id),
+ clearHistory:()=>invoke('app:clear'),openFolder:path=>invoke('app:open-folder',path),
+ openDependency:()=>invoke('app:external','https://github.com/yt-dlp/yt-dlp/releases/latest'),diagnostics:()=>invoke('app:diagnostics'),updateExtractor:()=>invoke('app:update-extractor'),
+ updateState:()=>invoke('update:state'),checkUpdate:()=>invoke('update:check'),downloadUpdate:()=>invoke('update:download'),installUpdate:()=>invoke('update:install'),
+ onUpdate:fn=>{const handler=(_ev,state)=>fn(state);ipcRenderer.on('update:status',handler);return()=>ipcRenderer.removeListener('update:status',handler);},
+ onTask:fn=>{const handler=(_ev,task)=>fn(task);ipcRenderer.on('task:update',handler);return()=>ipcRenderer.removeListener('task:update',handler);}
+}));

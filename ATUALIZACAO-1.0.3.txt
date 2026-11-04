@@ -1,0 +1,3 @@
+Versão 1.0.3: central de atualizações integrada usando electron-updater; build NSIS e publicação via GitHub Actions.
+IMPORTANTE: o repositório atual é PRIVADO. Para atualização sem login, publicar releases num repositório público (ou tornar público este repositório). Não embutir tokens no aplicativo.
+O instalador v1.0.3 ainda precisa ser construído e testado no Windows.

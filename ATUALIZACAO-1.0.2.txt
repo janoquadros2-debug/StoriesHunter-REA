@@ -1,0 +1,3 @@
+ATUALIZAÇÃO v1.0.2 — Corrige as mensagens de erro do Instagram e adiciona botão Atualizar yt-dlp em Configurações.
+Feche o aplicativo, copie o conteúdo deste ZIP para a pasta StoriesHunter-REA existente e confirme substituição. Depois abra scripts\INICIAR.bat. Não apague tools nem node_modules.
+O botão baixa o yt-dlp oficial para a pasta de dados do usuário. Isso não garante que o Instagram permita extrair qualquer link.

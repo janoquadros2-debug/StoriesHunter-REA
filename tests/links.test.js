@@ -1,0 +1,10 @@
+const test=require('node:test');const assert=require('node:assert/strict');const {parseInstagramLink}=require('../src/links');
+test('reel',()=>assert.equal(parseInstagramLink('https://www.instagram.com/reel/abc123/?igsh=something').type,'reel'));
+test('post',()=>assert.equal(parseInstagramLink('https://instagram.com/p/CABC123/').type,'publicação'));
+test('stories',()=>assert.equal(parseInstagramLink('https://instagram.com/stories/example/123456').type,'story'));
+test('highlights',()=>assert.equal(parseInstagramLink('https://instagram.com/stories/highlights/123456').type,'destaque'));
+test('profile',()=>assert.equal(parseInstagramLink('https://instagram.com/sample.user/').type,'perfil'));
+test('reject evil host',()=>assert.throws(()=>parseInstagramLink('https://instagram.com.evil.com/p/X/')));
+test('reject other schemes',()=>assert.throws(()=>parseInstagramLink('file:///etc/passwd')));
+test('reject credentials',()=>assert.throws(()=>parseInstagramLink('https://a@instagram.com/p/X/')));
+test('reject non-content',()=>assert.throws(()=>parseInstagramLink('https://instagram.com/accounts/login/')));
