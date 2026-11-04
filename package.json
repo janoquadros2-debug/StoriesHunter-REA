@@ -1,6 +1,6 @@
 {
   "name": "stories-hunter-rea",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Gerenciador independente de mídias públicas do Instagram para Windows",
   "main": "src/main.js",
