@@ -4,7 +4,7 @@
 const {parseInstagramLink}=require('./links');
 const MAX_BYTES=2_000_000;
 function decodeBasic(s){
- return String(s).replace(/&amp;/g,'&').replace(/\\u0026/gi,'&').replace(/\\u002f/gi,'/').replace(/\\\//g,'/').replace(/&quot;/g,'"');
+ return String(s).replace(/&amp;/g,'&').replace(/\\u0026/gi,'&').replace(/\\u002f/gi,'/').replace(/\\+\//g,'/').replace(/&quot;/g,'"');
 }
 function extractPublicMedia(html){
  const body=decodeBasic(html);
