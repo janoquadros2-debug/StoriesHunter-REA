@@ -27,6 +27,7 @@ bind('updateExtractorBtn',async()=>{
 function renderUpdate(u){$('installedVersion').textContent='v'+u.version;$('updateStatus').textContent=u.message||u.status;$('updateProgress').style.width=(u.progress||0)+'%';$('downloadUpdateBtn').disabled=u.status!=='available';$('installUpdateBtn').disabled=u.status!=='ready';$('checkUpdateBtn').disabled=['checking','downloading'].includes(u.status);}
 window.hunter.onUpdate(renderUpdate);
 window.hunter.updateState().then(renderUpdate).catch(e=>toast(e.message));
+bind('oneClickUpdateBtn',async()=>{const b=$('oneClickUpdateBtn');b.disabled=true;b.textContent='Verificando atualização...';try{await window.hunter.oneClickUpdate();}catch(e){toast(e.message);}finally{b.disabled=false;b.textContent='✦ Atualizar com 1 clique';}});
 bind('checkUpdateBtn',()=>window.hunter.checkUpdate().then(renderUpdate).catch(e=>toast(e.message)));
 bind('downloadUpdateBtn',()=>window.hunter.downloadUpdate().then(renderUpdate).catch(e=>toast(e.message)));
 bind('installUpdateBtn',()=>window.hunter.installUpdate().catch(e=>toast(e.message)));
