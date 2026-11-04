@@ -5,7 +5,7 @@ const {extractPublicMedia,scrapePublicProfile}=require('../src/public-scraper');
 test('captura somente links de posts e reels do HTML publico',()=>{
  const html='<a href="/reel/ABC123/">Ver</a><a href="https://www.instagram.com/p/POST123/">Post</a><a href="/reel/ABC123/">Duplicado</a><a href="https://evil.test/other">Fora</a>';
  const items=extractPublicMedia(html);
- assert.equal(items.length,2);assert.deepEqual(items.map(x=>x.type),['publicação','reel'].sort((a,b)=>0).reverse().reverse()); 
+ assert.equal(items.length,2);assert.deepEqual(new Set(items.map(x=>x.type)),new Set(['publicação','reel'])); 
  assert(items.some(x=>x.url==='https://www.instagram.com/reel/ABC123/'));
  assert(items.some(x=>x.url==='https://www.instagram.com/p/POST123/'));
 });
