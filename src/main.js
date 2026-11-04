@@ -4,7 +4,8 @@ const path=require('node:path');
 const fs=require('node:fs');
 const {autoUpdater}=require('electron-updater');
 const {inspect,inspectProfile,startDownload,resolveBinary,parseInstagramLink,runProcess,updateExtractor}=require('./backend');
-let win;
+const {profileInput}=require('./profile');
+let win,instagramWindow;
 let oneClickUpdating=false;
 let updateState={status:'idle',version:app.getVersion(),progress:0,message:'Verificação ainda não iniciada.'};
 function reportUpdate(patch){updateState={...updateState,...patch};send('update:status',updateState);}
@@ -57,6 +58,22 @@ function openWindow(){
 app.whenReady().then(()=>{initStore();openWindow();app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)openWindow();});});
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});
 app.on('before-quit',()=>{for(const t of tasks.values())if(t.cancel)t.cancel();});
+function allowedInstagramPage(raw){
+ try{const url=new URL(raw);return url.protocol==='https:'&&['instagram.com','www.instagram.com','m.instagram.com'].includes(url.hostname)&&!url.username&&!url.password&&!url.port;}catch{return false;}
+}
+function openInstagramBrowser(url){
+ if(!instagramWindow||instagramWindow.isDestroyed()){
+   instagramWindow=new BrowserWindow({width:1050,height:800,minWidth:700,minHeight:550,title:'Instagram — Stories Hunter',autoHideMenuBar:true,
+     webPreferences:{partition:'persist:stories-hunter-login',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
+   instagramWindow.webContents.setWindowOpenHandler(({url:newUrl})=>({action:allowedInstagramPage(newUrl)?'allow':'deny'}));
+   instagramWindow.webContents.on('will-navigate',(event,newUrl)=>{if(!allowedInstagramPage(newUrl))event.preventDefault();});
+ }
+ instagramWindow.loadURL(url);
+ instagramWindow.show();instagramWindow.focus();
+ return {opened:true};
+}
+ipcMain.handle('instagram:login',()=>openInstagramBrowser('https://www.instagram.com/accounts/login/'));
+ipcMain.handle('instagram:profile',(_event,user)=>openInstagramBrowser(profileInput(user).url));
 ipcMain.handle('app:boot',()=>({settings,history:Array.from(tasks.values()).map(x=>({...x,cancel:undefined})),hasYtDlp:!!resolveBinary(),platform:process.platform}));
 ipcMain.handle('app:inspect',async(_e,url)=>inspect(url));
 ipcMain.handle('app:profile',async(_e,username)=>inspectProfile(username));
